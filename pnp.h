@@ -5,110 +5,101 @@
 #include <stdlib.h>
 #include <limits.h>
 
-// Preemptive Priority Scheduling
-void pnp(int *arrival, int *burst, int *priority,
-         int *index, int n, int **timeline, int *tlen)
-{
-    int remaining[n + 1], completion[n + 1], turnaround[n + 1], waiting[n + 1];
+
+/*---------------------------------------
+  Input: asks user for arrival, burst, priority
+----------------------------------------*/
+void input_non_preemptive(int *at, int *bt, int *priority, int n) {
     for (int i = 1; i <= n; i++) {
-        remaining[i]  = burst[i];
-        completion[i] = 0;
-    }
-
-    double total_tat = 0, total_wt = 0;
-    int completed = 0;
-
-    int capacity = 1000;
-    int *tl = malloc(sizeof(int) * capacity);
-    int len = 0;
-
-    // Start from earliest arrival
-    int earliest = INT_MAX;
-    for (int i = 1; i <= n; i++)
-        if (arrival[i] < earliest) earliest = arrival[i];
-    int time = earliest;
-
-    while (completed < n) {
-        int idx = -1, bestPriority = INT_MAX;
-
-        // Pick process with lowest priority number
-        for (int i = 1; i <= n; i++) {
-            if (arrival[i] <= time && remaining[i] > 0) {
-                if (priority[i] < bestPriority ||
-                    (priority[i] == bestPriority && arrival[i] < arrival[idx]) ||
-                    (priority[i] == bestPriority && arrival[i] == arrival[idx] &&
-                     burst[i] < burst[idx])) {
-                    bestPriority = priority[i];
-                    idx = i;
-                }
-            }
-        }
-
-        if (idx == -1) { // CPU idle
-            int next = INT_MAX;
-            for (int i = 1; i <= n; i++)
-                if (remaining[i] > 0 && arrival[i] < next) next = arrival[i];
-
-            while (time < next) {
-                if (len >= capacity) {
-                    capacity *= 2;
-                    tl = realloc(tl, sizeof(int) * capacity);
-                }
-                tl[len++] = -1;
-                time++;
-            }
-            continue;
-        }
-
-        // Run chosen process for 1 time unit
-        remaining[idx]--;
-        if (len >= capacity) {
-            capacity *= 2;
-            tl = realloc(tl, sizeof(int) * capacity);
-        }
-        tl[len++] = idx;
-        time++;
-
-        if (remaining[idx] == 0) {
-            completion[idx] = time;
-            turnaround[idx] = completion[idx] - arrival[idx];
-            waiting[idx]    = turnaround[idx] - burst[idx];
-            total_tat += turnaround[idx];
-            total_wt  += waiting[idx];
-            completed++;
+        printf("Enter Arrival Time, Burst Time, Priority for Process %d: ", i);
+        if (scanf("%d %d %d", &at[i], &bt[i], &priority[i]) != 3) {
+            printf("Invalid input.\n");
+            return;
         }
     }
-
-    // Print table
-    printf("\nPre-emptive Priority Scheduling (PNP)\n");
-    printf("Process | Arrival | Burst | Priority | Completion | Turnaround | Waiting\n");
-    printf("-------------------------------------------------------------------------\n");
-    for (int i = 1; i <= n; i++) {
-        printf("  P%-3d  | %-7d| %-5d| %-8d| %-10d| %-10d| %-7d\n",
-               index[i], arrival[i], burst[i], priority[i],
-               completion[i], turnaround[i], waiting[i]);
-    }
-    printf("-------------------------------------------------------------------------\n");
-    printf("Average Turnaround Time = %.2f\n", total_tat / n);
-    printf("Average Waiting Time    = %.2f\n", total_wt / n);
-
-    *timeline = tl;
-    *tlen = len;
 }
 
-// Print Gantt chart from timeline
-void pnpgantt(int *timeline, int len)
-{
-    printf("\nGantt Chart:\nTime ");
-    for (int i = 0; i <= len; i++)
-        printf("%4d", i);
-    printf("\nProc ");
-    for (int i = 0; i < len; i++) {
-        if (timeline[i] == -1) printf("  ID "); // Idle
-        else                   printf("  P%-2d", timeline[i]);
+/*---------------------------------------
+  Sort by priority (higher first).
+  If equal priority, sort by arrival time.
+----------------------------------------*/
+void ppsort(int *at, int *bt, int *priority, int *index, int n) {
+    for (int i = 1; i <= n; i++) {
+        int maxIdx = i;
+        for (int j = i + 1; j <= n; j++) {
+            if (priority[j] > priority[maxIdx] ||
+               (priority[j] == priority[maxIdx] && at[j] < at[maxIdx])) {
+                maxIdx = j;
+            }
+        }
+        swap(&priority[i], &priority[maxIdx]);
+        swap(&bt[i], &bt[maxIdx]);
+        swap(&at[i], &at[maxIdx]);
+        swap(&index[i], &index[maxIdx]);
+    }
+}
+
+/*---------------------------------------
+  Priority (Non-Preemptive) Scheduling
+----------------------------------------*/
+void pp(int *at, int *bt, int *priority, int *index, int n) {
+    int ct[n + 1], wt[n + 1], tat[n + 1];
+    int time = 0;
+
+    ppsort(at, bt, priority, index, n);
+
+    printf("\n\nPriority Scheduling (Non-Preemptive)\n====================================\n");
+    printf("PID\tAT\tBT\tPriority\tCT\tWT\tTAT\n");
+
+    for (int i = 1; i <= n; i++) {
+        if (time < at[i]) {  // CPU idle until process arrives
+            time = at[i];
+        }
+        ct[i]  = time + bt[i];
+        tat[i] = ct[i] - at[i];
+        wt[i]  = tat[i] - bt[i];
+        printf("P%d\t%d\t%d\t%d\t\t%d\t%d\t%d\n",
+               index[i], at[i], bt[i], priority[i], ct[i], wt[i], tat[i]);
+        time += bt[i];
+    }
+}
+
+/*---------------------------------------
+  Gantt Chart
+----------------------------------------*/
+void ppgantt(int *at, int *bt, int *priority, int *index, int n) {
+    ppsort(at, bt, priority, index, n);
+
+    printf("\n\nGantt Chart\n===========\n|");
+    int time = 0;
+    for (int i = 1; i <= n; i++) {
+        if (time < at[i]) {
+            // idle time slot
+            printf("Idle");
+            for (int j = 0; j < (at[i] - time); j++) printf(" ");
+            printf("|");
+            time = at[i];
+        }
+        printf("P%d", index[i]);
+        for (int j = 0; j < bt[i]; j++) printf(" ");
+        printf("|");
+        time += bt[i];
+    }
+
+    // Time markers
+    printf("\n0");
+    time = 0;
+    for (int i = 1; i <= n; i++) {
+        if (time < at[i]) {
+            time = at[i];
+            printf("%*d", 5, time); // idle gap
+        }
+        time += bt[i];
+        printf("%*d", bt[i] + 2, time);
     }
     printf("\n");
 }
 
 #endif
+
 
